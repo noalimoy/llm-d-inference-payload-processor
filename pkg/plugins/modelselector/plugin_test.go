@@ -21,11 +21,12 @@ import (
 	"testing"
 
 	"github.com/llm-d/llm-d-inference-payload-processor/pkg/datastore"
+	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/datalayer"
 	fwkplugin "github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/plugin"
 	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/requesthandling"
 )
 
-func newTestDatastore(modelNames ...string) datastore.Datastore {
+func newTestDatastore(modelNames ...string) datalayer.Datastore {
 	ds := datastore.NewFakeDataStore()
 	for _, name := range modelNames {
 		ds.GetOrCreateModel(name)

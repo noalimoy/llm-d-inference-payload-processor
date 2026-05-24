@@ -20,9 +20,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/llm-d/llm-d-inference-payload-processor/pkg/datastore"
-	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/datalayer"
-	dlsrc "github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/datalayer/datasource"
+	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/datalayer"
+	dlsrc "github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/datalayer/datasource"
 	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/plugin"
 )
 
@@ -61,11 +60,11 @@ func (r RequestMetadataCount) Clone() datalayer.Cloneable { return r }
 // synthetic ResponseEventType in its error/EOF path to keep counts accurate.
 type RequestMetadataExtractor struct {
 	typedName plugin.TypedName
-	ds        datastore.Datastore
+	ds        datalayer.Datastore
 	counters  map[string]RequestMetadataCount
 }
 
-func NewRequestMetadataExtractor(ds datastore.Datastore) *RequestMetadataExtractor {
+func NewRequestMetadataExtractor(ds datalayer.Datastore) *RequestMetadataExtractor {
 	return &RequestMetadataExtractor{
 		typedName: plugin.TypedName{Type: PluginType, Name: PluginType},
 		ds:        ds,

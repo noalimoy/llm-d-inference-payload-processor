@@ -25,8 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	logutil "github.com/llm-d/llm-d-inference-payload-processor/pkg/common/observability/logging"
-	"github.com/llm-d/llm-d-inference-payload-processor/pkg/datastore"
-	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/datalayer"
+	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/datalayer"
 	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/modelselector"
 	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/plugin"
 	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/requesthandling"
@@ -53,7 +52,7 @@ func ModelSelectorPluginFactory(name string, _ json.RawMessage, handle plugin.Ha
 
 // NewModelSelectorPlugin creates a ModelSelector RequestProcessor plugin.
 // Candidate models are read from the Datastore on each request.
-func NewModelSelectorPlugin(ds datastore.Datastore) (*ModelSelectorPlugin, error) {
+func NewModelSelectorPlugin(ds datalayer.Datastore) (*ModelSelectorPlugin, error) {
 	if ds == nil {
 		return nil, fmt.Errorf("datastore is required for '%s' plugin", ModelSelectorPluginType)
 	}
@@ -79,7 +78,7 @@ func NewModelSelectorPlugin(ds datastore.Datastore) (*ModelSelectorPlugin, error
 type ModelSelectorPlugin struct {
 	typedName plugin.TypedName
 	selector  *ms.ModelSelector
-	datastore datastore.Datastore
+	datastore datalayer.Datastore
 }
 
 func (p *ModelSelectorPlugin) TypedName() plugin.TypedName {
