@@ -41,10 +41,11 @@ import (
 	"github.com/llm-d/llm-d-inference-payload-processor/pkg/config/loader"
 	"github.com/llm-d/llm-d-inference-payload-processor/pkg/datastore/inmemory"
 	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/datalayer"
+	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/datalayer/datasource"
 	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/plugin"
 	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/requesthandling"
 	notificationsource "github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/plugins/datalayer/notificationsource"
-	requestmetadata "github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/plugins/datalayer/requestmetadata"
+	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/plugins/datalayer/requestmetadata"
 	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/plugins/modelselector/picker/maxscore"
 	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/plugins/modelselector/picker/random"
 	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/plugins/modelselector/picker/weightedrandom"
@@ -76,7 +77,8 @@ type Runner struct {
 	// in the same order the plugin flags are provided.
 	responsePlugins []requesthandling.ResponseProcessor
 
-	customCollectors []prometheus.Collector
+	customCollectors    []prometheus.Collector
+	notificationSources []datasource.NotificationSource
 }
 
 // WithExecutableName sets the name of the executable containing the runner.
@@ -183,17 +185,17 @@ func (r *Runner) Run(ctx context.Context) error {
 		return err
 	}
 
-	// Wire the request-metadata data pipeline: extractor → notification source.
-	// TODO: config-driven path does not yet support NotificationSource + extractors.
-	notifSrc, err := notificationsource.New("default", requestmetadata.NewRequestMetadataExtractor(ds))
-	if err != nil {
-		setupLog.Error(err, "failed to create notification source")
-		return err
+	for _, src := range r.notificationSources {
+		if err := src.Start(ctx); err != nil {
+			setupLog.Error(err, "failed to start notification source", "name", src.TypedName().Name)
+			return err
+		}
 	}
-	if err := notifSrc.Start(ctx); err != nil {
-		setupLog.Error(err, "failed to start notification source")
-		return err
-	}
+	defer func() {
+		for _, src := range r.notificationSources {
+			src.Stop()
+		}
+	}()
 
 	// Setup ExtProc Server Runner.
 	serverRunner := &runserver.ExtProcServerRunner{
@@ -243,20 +245,23 @@ func (r *Runner) loadConfiguration(ctx context.Context, opts *runserver.Options,
 	r.registerInTreePlugins()
 
 	theConfig, err := loader.LoadConfiguration(configBytes, handle, logger)
-	if err == nil {
-		// Hack for now until the ProfilePicker is supported
-		var profileName = ""
-		for name := range theConfig.Profiles {
-			profileName = name
-			break
-		}
-		logger.Info("Running with", "profile", profileName)
-
-		r.requestPlugins = theConfig.Profiles[profileName].RequestPlugins
-		r.responsePlugins = theConfig.Profiles[profileName].ResponsePlugins
+	if err != nil {
+		return err
 	}
 
-	return err
+	// Hack for now until the ProfilePicker is supported
+	var profileName = ""
+	for name := range theConfig.Profiles {
+		profileName = name
+		break
+	}
+	logger.Info("Running with", "profile", profileName)
+
+	r.requestPlugins = theConfig.Profiles[profileName].RequestPlugins
+	r.responsePlugins = theConfig.Profiles[profileName].ResponsePlugins
+	r.notificationSources = theConfig.NotificationSources
+
+	return nil
 }
 
 // registerInTreePlugins registers the factory functions of all known payload processor plugins

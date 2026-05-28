@@ -62,6 +62,10 @@ type PayloadProcessorConfig struct {
 	// Postprocessing is an optional ordered list of references to plugins
 	// that will post-process incoming requests
 	PostProcessing *PluginRefList `json:"postProcessing"`
+
+	// +optional
+	// NotificationSources is an optional list of references to notification-source plugins to start.
+	NotificationSources []PluginRef `json:"notificationSources,omitempty"`
 }
 
 func (cfg PayloadProcessorConfig) String() string {
@@ -78,6 +82,9 @@ func (cfg PayloadProcessorConfig) String() string {
 	fmt.Fprintf(contents, ", Profiles: %v", cfg.Profiles)
 	if cfg.PostProcessing != nil {
 		fmt.Fprintf(contents, ", PostProcessing: %v", cfg.PostProcessing)
+	}
+	if len(cfg.NotificationSources) > 0 {
+		fmt.Fprintf(contents, ", NotificationSources: %v", cfg.NotificationSources)
 	}
 
 	return "{" + contents.String() + "}"

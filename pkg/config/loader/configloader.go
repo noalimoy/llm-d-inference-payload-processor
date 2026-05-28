@@ -28,6 +28,7 @@ import (
 
 	configapi "github.com/llm-d/llm-d-inference-payload-processor/apix/config/v1alpha1"
 	config "github.com/llm-d/llm-d-inference-payload-processor/pkg/config"
+	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/datalayer/datasource"
 	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/plugin"
 	"github.com/llm-d/llm-d-inference-payload-processor/pkg/framework/interface/requesthandling"
 )
@@ -57,9 +58,32 @@ func LoadConfiguration(configBytes []byte, handle plugin.Handle, logger logr.Log
 		return nil, err
 	}
 
+	notificationSources, err := buildDatalayer(rawConfig.NotificationSources, handle)
+	if err != nil {
+		logger.Error(err, "failed to load one or more notification sources")
+		return nil, err
+	}
+
 	return &config.Config{
-		Profiles: profiles,
+		Profiles:            profiles,
+		NotificationSources: notificationSources,
 	}, nil
+}
+
+func buildDatalayer(refs []configapi.PluginRef, handle plugin.Handle) ([]datasource.NotificationSource, error) {
+	sources := make([]datasource.NotificationSource, 0, len(refs))
+	for _, ref := range refs {
+		p := handle.Plugin(ref.PluginRef)
+		if p == nil {
+			return nil, fmt.Errorf("there is no plugin named %s", ref.PluginRef)
+		}
+		src, ok := p.(datasource.NotificationSource)
+		if !ok {
+			return nil, fmt.Errorf("the plugin named %s is not a NotificationSource", ref.PluginRef)
+		}
+		sources = append(sources, src)
+	}
+	return sources, nil
 }
 
 func loadRawConfiguration(configBytes []byte, logger logr.Logger) (*configapi.PayloadProcessorConfig, error) {

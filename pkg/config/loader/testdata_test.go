@@ -92,3 +92,40 @@ plugins:
   parameters:
     threshold: 20
 `
+
+// datalayerSuccessConfigText has a valid notification-source reference.
+const datalayerSuccessConfigText = `
+apiVersion: llm-d.ai/v1alpha1
+kind: PayloadProcessorConfig
+plugins:
+- name: my-notif-source
+  type: notification-source
+notificationSources:
+- pluginRef: my-notif-source
+`
+
+// datalayerMissingRefConfigText references a plugin that does not exist.
+const datalayerMissingRefConfigText = `
+apiVersion: llm-d.ai/v1alpha1
+kind: PayloadProcessorConfig
+plugins:
+- name: test1
+  type: test-plugin
+  parameters:
+    threshold: 10
+notificationSources:
+- pluginRef: does-not-exist
+`
+
+// datalayerWrongTypeConfigText references a plugin that is not a NotificationSource.
+const datalayerWrongTypeConfigText = `
+apiVersion: llm-d.ai/v1alpha1
+kind: PayloadProcessorConfig
+plugins:
+- name: test1
+  type: test-plugin
+  parameters:
+    threshold: 10
+notificationSources:
+- pluginRef: test1
+`
