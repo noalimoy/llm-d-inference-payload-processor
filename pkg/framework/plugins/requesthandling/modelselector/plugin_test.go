@@ -75,40 +75,6 @@ func newFakeHandle(modelNames ...string) *fakeHandle {
 	}
 }
 
-// TestProcessRequestWritesSelectedModelToBodyAndCycleState checks that the selected model is written to both the request body field "model" and CycleState.
-func TestProcessRequestWritesSelectedModelToBodyAndCycleState(t *testing.T) {
-	plugin, err := ModelSelectorPluginFactory(ModelSelectorPluginType, json.RawMessage(`{}`), newFakeHandle("model-a", "model-b", "model-c"))
-	if err != nil {
-		t.Fatalf("failed to create plugin: %v", err)
-	}
-	p := plugin.(*ModelSelectorPlugin)
-
-	request := requesthandling.NewInferenceRequest()
-	request.Body["model"] = "auto"
-	cycleState := fwkplugin.NewCycleState()
-
-	err = p.ProcessRequest(context.Background(), cycleState, request)
-	if err != nil {
-		t.Fatalf("ProcessRequest failed: %v", err)
-	}
-
-	selectedModel, ok := request.Body["model"].(string)
-	if !ok || selectedModel == "" {
-		t.Fatal("expected model field in request body to be set")
-	}
-	if selectedModel == "auto" {
-		t.Error("expected model field to be replaced with selected model, still 'auto'")
-	}
-
-	storedModel, err := fwkplugin.ReadCycleStateKey[string](cycleState, SelectedModelKey)
-	if err != nil {
-		t.Fatalf("expected selected model in CycleState: %v", err)
-	}
-	if storedModel != selectedModel {
-		t.Errorf("CycleState model %q does not match body model %q", storedModel, selectedModel)
-	}
-}
-
 // TestProcessRequestSelectsFromDatastoreModels checks that the selected model is one of the candidates registered in the datastore.
 func TestProcessRequestSelectsFromDatastoreModels(t *testing.T) {
 	candidates := []string{"llama-70b", "llama-8b", "mistral-7b"}

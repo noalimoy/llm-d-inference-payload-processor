@@ -44,24 +44,23 @@ var _ requesthandling.RequestProcessor = &ModelSelectorPlugin{}
 
 // ModelSelectorPluginFactory is the factory function for the ModelSelector RequestProcessor plugin.
 func ModelSelectorPluginFactory(name string, _ json.RawMessage, handle plugin.Handle) (plugin.Plugin, error) {
-	return NewModelSelectorPlugin(handle)
-}
-
-// NewModelSelectorPlugin creates a ModelSelector RequestProcessor plugin.
-// Candidate models are read from the Datastore on each request.
-// Filter, Scorer, and Picker plugins are sourced from the handle; if no Picker is present,
-// MaxScorePicker is used as the default.
-func NewModelSelectorPlugin(handle plugin.Handle) (*ModelSelectorPlugin, error) {
 	profile, err := buildModelSelectorProfile(handle)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build model selector profile: %w", err)
 	}
+	return NewModelSelectorPlugin(profile, handle.Datastore()), nil
+}
 
+// NewModelSelectorPlugin creates a ModelSelector RequestProcessor plugin.
+// Candidate models are read from the Datastore on each request.
+// Filter, Scorer, and Picker plugins are sourced from profile; if no Picker is present,
+// MaxScorePicker is used as the default.
+func NewModelSelectorPlugin(profile *ms.ModelSelectorProfile, datastore datalayer.Datastore) *ModelSelectorPlugin {
 	return &ModelSelectorPlugin{
 		typedName: plugin.TypedName{Type: ModelSelectorPluginType, Name: ModelSelectorPluginType},
 		selector:  ms.NewModelSelector(profile),
-		datastore: handle.Datastore(),
-	}, nil
+		datastore: datastore,
+	}
 }
 
 // buildModelSelectorProfile inspects all plugins in the handle and adds them to the profile
@@ -107,6 +106,12 @@ func (p *ModelSelectorPlugin) TypedName() plugin.TypedName {
 	return p.typedName
 }
 
+// WithName sets the plugin name and returns the plugin for method chaining.
+func (p *ModelSelectorPlugin) WithName(name string) *ModelSelectorPlugin {
+	p.typedName.Name = name
+	return p
+}
+
 // ProcessRequest reads candidate models from the Datastore, runs model
 // selection, and writes the selected model into the request body and CycleState.
 func (p *ModelSelectorPlugin) ProcessRequest(ctx context.Context, cycleState *plugin.CycleState, request *requesthandling.InferenceRequest) error {
@@ -125,7 +130,6 @@ func (p *ModelSelectorPlugin) ProcessRequest(ctx context.Context, cycleState *pl
 	selectedName := result.TargetModel.GetName()
 	logger.V(logutil.VERBOSE).Info("Model selected", "model", selectedName)
 
-	cycleState.Write(SelectedModelKey, selectedName)
 	request.SetBodyField("model", selectedName)
 
 	return nil
