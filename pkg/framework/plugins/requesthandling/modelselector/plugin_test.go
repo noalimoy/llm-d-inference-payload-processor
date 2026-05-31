@@ -47,9 +47,6 @@ func (f *fakeHandle) Datastore() datalayer.Datastore          { return f.ds }
 
 func (f *fakeHandle) Plugin(name string) fwkplugin.Plugin { return f.plugins[name] }
 func (f *fakeHandle) AddPlugin(name string, p fwkplugin.Plugin) {
-	if f.plugins == nil {
-		f.plugins = map[string]fwkplugin.Plugin{}
-	}
 	f.plugins[name] = p
 }
 func (f *fakeHandle) GetAllPlugins() []fwkplugin.Plugin {
@@ -69,10 +66,18 @@ func newTestDatastore(modelNames ...string) datalayer.Datastore {
 	return ds
 }
 
+// newFakeHandle creates a fakeHandle with a datastore pre-populated with the given model names
+// and no additional plugins configured.
+func newFakeHandle(modelNames ...string) *fakeHandle {
+	return &fakeHandle{
+		ds:      newTestDatastore(modelNames...),
+		plugins: map[string]fwkplugin.Plugin{},
+	}
+}
+
 // TestProcessRequestWritesSelectedModelToBodyAndCycleState checks that the selected model is written to both the request body field "model" and CycleState.
 func TestProcessRequestWritesSelectedModelToBodyAndCycleState(t *testing.T) {
-	ds := newTestDatastore("model-a", "model-b", "model-c")
-	plugin, err := ModelSelectorPluginFactory(ModelSelectorPluginType, json.RawMessage(`{}`), &fakeHandle{ds: ds})
+	plugin, err := ModelSelectorPluginFactory(ModelSelectorPluginType, json.RawMessage(`{}`), newFakeHandle("model-a", "model-b", "model-c"))
 	if err != nil {
 		t.Fatalf("failed to create plugin: %v", err)
 	}
@@ -107,8 +112,7 @@ func TestProcessRequestWritesSelectedModelToBodyAndCycleState(t *testing.T) {
 // TestProcessRequestSelectsFromDatastoreModels checks that the selected model is one of the candidates registered in the datastore.
 func TestProcessRequestSelectsFromDatastoreModels(t *testing.T) {
 	candidates := []string{"llama-70b", "llama-8b", "mistral-7b"}
-	ds := newTestDatastore(candidates...)
-	plugin, err := ModelSelectorPluginFactory(ModelSelectorPluginType, json.RawMessage(`{}`), &fakeHandle{ds: ds})
+	plugin, err := ModelSelectorPluginFactory(ModelSelectorPluginType, json.RawMessage(`{}`), newFakeHandle(candidates...))
 	if err != nil {
 		t.Fatalf("failed to create plugin: %v", err)
 	}
@@ -138,8 +142,7 @@ func TestProcessRequestSelectsFromDatastoreModels(t *testing.T) {
 
 // TestProcessRequestFailsWithEmptyDatastore checks that ProcessRequest returns an error when no candidate models are available.
 func TestProcessRequestFailsWithEmptyDatastore(t *testing.T) {
-	ds := newTestDatastore() // no models
-	plugin, err := ModelSelectorPluginFactory(ModelSelectorPluginType, json.RawMessage(`{}`), &fakeHandle{ds: ds})
+	plugin, err := ModelSelectorPluginFactory(ModelSelectorPluginType, json.RawMessage(`{}`), newFakeHandle())
 	if err != nil {
 		t.Fatalf("failed to create plugin: %v", err)
 	}
@@ -155,42 +158,17 @@ func TestProcessRequestFailsWithEmptyDatastore(t *testing.T) {
 	}
 }
 
-// TestModelSelectorPluginFactoryRejectsNilDatastore checks that the factory returns an error when the handle has no datastore.
-func TestModelSelectorPluginFactoryRejectsNilDatastore(t *testing.T) {
-	_, err := ModelSelectorPluginFactory(ModelSelectorPluginType, json.RawMessage(`{}`), &fakeHandle{ds: nil})
-	if err == nil {
-		t.Fatal("expected error for nil datastore")
-	}
-}
-
-// TestFactoryWiresDatastoreFromHandle checks that the plugin's datastore field is set to the one provided by the handle.
-func TestFactoryWiresDatastoreFromHandle(t *testing.T) {
-	ds := newTestDatastore("model-a")
-	p, err := ModelSelectorPluginFactory(ModelSelectorPluginType, json.RawMessage(`{}`), &fakeHandle{ds: ds})
-	if err != nil {
-		t.Fatalf("factory returned error: %v", err)
-	}
-	msp, ok := p.(*ModelSelectorPlugin)
-	if !ok {
-		t.Fatalf("expected *ModelSelectorPlugin, got %T", p)
-	}
-	if msp.datastore != ds {
-		t.Error("factory did not wire the datastore from the handle")
-	}
-}
-
 // TestTypedName checks that the plugin's TypedName type matches the registered ModelSelectorPluginType constant.
 func TestTypedName(t *testing.T) {
-	ds := newTestDatastore("model-a")
-	plugin, _ := ModelSelectorPluginFactory(ModelSelectorPluginType, json.RawMessage(`{}`), &fakeHandle{ds: ds})
-	if plugin.TypedName().Type != ModelSelectorPluginType {
-		t.Errorf("expected type %q, got %q", ModelSelectorPluginType, plugin.TypedName().Type)
+	thePlugin, _ := ModelSelectorPluginFactory(ModelSelectorPluginType, json.RawMessage(`{}`), newFakeHandle("model-a"))
+	if thePlugin.TypedName().Type != ModelSelectorPluginType {
+		t.Errorf("expected type %q, got %q", ModelSelectorPluginType, thePlugin.TypedName().Type)
 	}
 }
 
 // TestBuildProfileUsesDefaultMaxScorePickerWhenNoPickerInHandle checks that MaxScorePicker is used as the default picker when no picker plugin is in the handle.
 func TestBuildProfileUsesDefaultMaxScorePickerWhenNoPickerInHandle(t *testing.T) {
-	handle := &fakeHandle{ds: newTestDatastore("model-a")}
+	handle := newFakeHandle("model-a")
 	profile, err := buildModelSelectorProfile(handle)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -204,10 +182,8 @@ func TestBuildProfileUsesDefaultMaxScorePickerWhenNoPickerInHandle(t *testing.T)
 // TestBuildProfileWiresScorerFromHandle checks that a scorer plugin registered in the handle is added to the profile.
 func TestBuildProfileWiresScorerFromHandle(t *testing.T) {
 	scorer := costaware.NewCostScorer()
-	handle := &fakeHandle{
-		ds:      newTestDatastore("model-a", "model-b"),
-		plugins: map[string]fwkplugin.Plugin{scorer.TypedName().Name: scorer},
-	}
+	handle := newFakeHandle("model-a", "model-b")
+	handle.AddPlugin(scorer.TypedName().Name, scorer)
 	profile, err := buildModelSelectorProfile(handle)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -221,10 +197,8 @@ func TestBuildProfileWiresScorerFromHandle(t *testing.T) {
 // TestBuildProfileWiresPickerFromHandle checks that a picker plugin registered in the handle is used instead of the default.
 func TestBuildProfileWiresPickerFromHandle(t *testing.T) {
 	picker := maxscore.NewMaxScorePicker()
-	handle := &fakeHandle{
-		ds:      newTestDatastore("model-a"),
-		plugins: map[string]fwkplugin.Plugin{picker.TypedName().Name: picker},
-	}
+	handle := newFakeHandle("model-a")
+	handle.AddPlugin(picker.TypedName().Name, picker)
 	profile, err := buildModelSelectorProfile(handle)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -239,13 +213,9 @@ func TestBuildProfileWiresPickerFromHandle(t *testing.T) {
 func TestBuildProfileRejectsMultiplePickers(t *testing.T) {
 	p1 := maxscore.NewMaxScorePicker().WithName("picker-1")
 	p2 := maxscore.NewMaxScorePicker().WithName("picker-2")
-	handle := &fakeHandle{
-		ds: newTestDatastore("model-a"),
-		plugins: map[string]fwkplugin.Plugin{
-			"picker-1": p1,
-			"picker-2": p2,
-		},
-	}
+	handle := newFakeHandle("model-a")
+	handle.AddPlugin("picker-1", p1)
+	handle.AddPlugin("picker-2", p2)
 	_, err := buildModelSelectorProfile(handle)
 	if err == nil {
 		t.Fatal("expected error when two picker plugins are registered")
@@ -273,10 +243,8 @@ var _ modelselector.Filter = &fakeScorerFilter{}
 // TestBuildProfilePluginImplementingBothScorerAndFilter checks that a plugin implementing both Scorer and Filter is registered in both roles within the profile.
 func TestBuildProfilePluginImplementingBothScorerAndFilter(t *testing.T) {
 	dual := &fakeScorerFilter{typedName: fwkplugin.TypedName{Type: "dual", Name: "dual"}}
-	handle := &fakeHandle{
-		ds:      newTestDatastore("model-a"),
-		plugins: map[string]fwkplugin.Plugin{"dual": dual},
-	}
+	handle := newFakeHandle("model-a")
+	handle.AddPlugin("dual", dual)
 	profile, err := buildModelSelectorProfile(handle)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

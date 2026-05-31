@@ -52,10 +52,6 @@ func ModelSelectorPluginFactory(name string, _ json.RawMessage, handle plugin.Ha
 // Filter, Scorer, and Picker plugins are sourced from the handle; if no Picker is present,
 // MaxScorePicker is used as the default.
 func NewModelSelectorPlugin(handle plugin.Handle) (*ModelSelectorPlugin, error) {
-	if handle.Datastore() == nil {
-		return nil, fmt.Errorf("datastore is required for '%s' plugin", ModelSelectorPluginType)
-	}
-
 	profile, err := buildModelSelectorProfile(handle)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build model selector profile: %w", err)
