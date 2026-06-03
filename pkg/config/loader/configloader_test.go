@@ -444,7 +444,7 @@ type mockPicker struct{ mockPlugin }
 // compile-time type assertion
 var _ modelselector.Picker = &mockPicker{}
 
-func (m *mockPicker) Pick(ctx context.Context, cycleState *plugin.CycleState, scoredModels []*modelselector.ScoredModel) *modelselector.ProfileRunResult {
+func (m *mockPicker) Pick(ctx context.Context, cycleState *plugin.CycleState, scoredModels []*modelselector.ScoredModel) *modelselector.PipelineRunResult {
 	return nil
 }
 
@@ -543,10 +543,10 @@ func TestBuildProfilesModelSelectorPlugins(t *testing.T) {
 
 	// The model-selector plugin's internal profile must have received the wired plugins.
 	msPlugin := profile.RequestPlugins[0].(*modelselectorplugin.ModelSelectorPlugin)
-	msProfile := msPlugin.Profile()
-	require.Len(t, msProfile.Filters(), 1, "model-selector profile must have one filter")
-	require.Len(t, msProfile.Scorers(), 1, "model-selector profile must have one scorer")
-	require.NotNil(t, msProfile.Picker(), "model-selector profile must have a picker")
+	msPipeline := msPlugin.Pipeline()
+	require.Len(t, msPipeline.Filters(), 1, "model-selector pipeline must have one filter")
+	require.Len(t, msPipeline.Scorers(), 1, "model-selector pipeline must have one scorer")
+	require.NotNil(t, msPipeline.Picker(), "model-selector pipeline must have a picker")
 }
 
 func TestBuildProfilesScorerMissingWeight(t *testing.T) {

@@ -240,8 +240,8 @@ func buildModelSelector(profiles map[string]*requesthandling.Profile, _ plugin.H
 			if err := msPlugin.AddPlugins(profile.ModelSelectorPlugins...); err != nil {
 				return fmt.Errorf("failed to add plugins to model-selector %q: %w", msPlugin.TypedName().Name, err)
 			}
-			if msPlugin.Profile().Picker() == nil {
-				msPlugin.Profile().WithPicker(maxscore.NewMaxScorePicker())
+			if msPlugin.Pipeline().Picker() == nil {
+				msPlugin.Pipeline().WithPicker(maxscore.NewMaxScorePicker())
 			}
 		}
 	}
